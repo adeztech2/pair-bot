@@ -1,0 +1,20 @@
+{
+  "name": "adez-md-pairing",
+  "version": "1.0.0",
+  "description": "ADEZ-MD WhatsApp QR and Pairing Code Website",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "latest",
+    "@hapi/boom": "latest",
+    "express": "latest",
+    "pino": "latest",
+    "qrcode": "latest"
+  }
+}
