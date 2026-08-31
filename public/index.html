@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+>
+
+<title>ADEZ-MD | Pairing</title>
+
+<style>
+
+*{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+}
+
+body{
+  min-height:100vh;
+  background:#050505;
+  color:#fff;
+  font-family:Arial,Helvetica,sans-serif;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+
+.container{
+  width:100%;
+  max-width:480px;
+}
+
+.logo{
+  text-align:center;
+  margin-bottom:25px;
+}
+
+.logo h1{
+  font-size:42px;
+  font-weight:900;
+  letter-spacing:4px;
+}
+
+.logo span{
+  display:block;
+  margin-top:5px;
+  color:#999;
+  font-size:13px;
+  letter-spacing:3px;
+}
+
+.card{
+  background:#0d0d0d;
+  border:1px solid #242424;
+  border-radius:22px;
+  padding:25px;
+  box-shadow:
+    0 20px 60px rgba(0,0,0,.6);
+}
+
+.status{
+  text-align:center;
+  background:#151515;
+  border-radius:12px;
+  padding:12px;
+  margin-bottom:22px;
+  color:#aaa;
+  font-size:14px;
+}
+
+.status b{
+  color:#fff;
+}
+
+.tabs{
+  display:flex;
+  gap:10px;
+  margin-bottom:22px;
+}
+
+.tab{
+  flex:1;
+  padding:13px;
+  border:none;
+  border-radius:10px;
+  background:#191919;
+  color:#aaa;
+  cursor:pointer;
+  font-weight:bold;
+}
+
+.tab.active{
+  background:#fff;
+  color:#000;
+}
+
+.section{
+  display:none;
+}
+
+.section.active{
+  display:block;
+}
+
+.title{
+  text-align:center;
+  font-size:20px;
+  margin-bottom:8px;
+}
+
+.description{
+  text-align:center;
+  color:#888;
+  font-size:13px;
+  line-height:1.6;
+  margin-bottom:20px;
+}
+
+input{
+  width:100%;
+  padding:15px;
+  border-radius:11px;
+  border:1px solid #303030;
+  outline:none;
+  background:#151515;
+  color:#fff;
+  font-size:16px;
+  margin-bottom:12px;
+}
+
+input:focus{
+  border-color:#777;
+}
+
+button.main{
+  width:100%;
+  padding:15px;
+  border:none;
+  border-radius:11px;
+  background:#fff;
+  color:#000;
+  font-size:15px;
+  font-weight:800;
+  cursor:pointer;
+}
+
+button.main:hover{
+  opacity:.9;
+}
+
+button.main:disabled{
+  opacity:.5;
+  cursor:not-allowed;
+}
+
+.result{
+  margin-top:18px;
+  display:none;
+}
+
+.code-box{
+  background:#000;
+  border:1px dashed #444;
+  border-radius:12px;
+  padding:20px;
+  text-align:center;
+}
+
+.code{
+  font-size:27px;
+  font-weight:900;
+  letter-spacing:4px;
+  margin-bottom:15px;
+}
+
+.copy{
+  border:1px solid #444;
+  background:#151515;
+  color:#fff;
+  padding:10px 18px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+.qr-box{
+  min-height:330px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#000;
+  border-radius:14px;
+  border:1px solid #282828;
+  padding:15px;
+}
+
+.qr-box img{
+  width:280px;
+  max-width:100%;
+  background:#fff;
+  padding:10px;
+  border-radius:8px;
+}
+
+.qr-placeholder{
+  text-align:center;
+  color:#777;
+  font-size:14px;
+  line-height:1.6;
+}
+
+.refresh{
+  margin-top:12px;
+  background:#171717;
+  border:1px solid #333;
+  color:#fff;
+  width:100%;
+  padding:13px;
+  border-radius:10px;
+  cursor:pointer;
+}
+
+.footer{
+  text-align:center;
+  margin-top:20px;
+  color:#555;
+  font-size:12px;
+}
+
+.message{
+  margin-top:14px;
+  text-align:center;
+  font-size:13px;
+  color:#999;
+}
+
+.success{
+  color:#fff;
+}
+
+.error{
+  color:#ff6b6b;
+}
+
+@media(max-width:480px){
+
+  body{
+    padding:12px;
+  }
+
+  .card{
+    padding:18px;
+  }
+
+  .logo h1{
+    font-size:34px;
+  }
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="logo">
+
+    <h1>ADEZ-MD</h1>
+
+    <span>WHATSAPP PAIRING</span>
+
+  </div>
+
+
+  <div class="card">
+
+    <div class="status">
+      Status:
+      <b id="status">Connecting...</b>
+    </div>
+
+
+    <div class="tabs">
+
+      <button
+        class="tab active"
+        onclick="showTab('pair')"
+      >
+        Pair Code
+      </button>
+
+      <button
+        class="tab"
+        onclick="showTab('qr')"
+      >
+        QR Code
+      </button>
+
+    </div>
+
+
+    <!-- PAIRING CODE -->
+
+    <div
+      id="pair"
+      class="section active"
+    >
+
+      <div class="title">
+        Phone Number Pairing
+      </div>
+
+      <div class="description">
+        Enter your WhatsApp number using
+        the international country code.
+      </div>
+
+      <input
+        id="phone"
+        type="tel"
+        placeholder="254712345678"
+        autocomplete="off"
+      >
+
+      <button
+        id="pairButton"
+        class="main"
+        onclick="requestPairing()"
+      >
+        GET PAIRING CODE
+      </button>
+
+
+      <div
+        id="pairResult"
+        class="result"
+      >
+
+        <div class="code-box">
+
+          <div
+            id="pairCode"
+            class="code"
+          >
+            ----
+          </div>
+
+          <button
+            class="copy"
+            onclick="copyCode()"
+          >
+            COPY CODE
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <div
+        id="pairMessage"
+        class="message"
+      ></div>
+
+    </div>
+
+
+    <!-- QR CODE -->
+
+    <div
+      id="qr"
+      class="section"
+    >
+
+      <div class="title">
+        QR Code Pairing
+      </div>
+
+      <div class="description">
+        Open WhatsApp → Linked Devices →
+        Link a Device, then scan this QR code.
+      </div>
+
+
+      <div
+        id="qrBox"
+        class="qr-box"
+      >
+
+        <div class="qr-placeholder">
+          Waiting for QR code...
+        </div>
+
+      </div>
+
+
+      <button
+        class="refresh"
+        onclick="loadQR()"
+      >
+        REFRESH QR
+      </button>
+
+      <div
+        id="qrMessage"
+        class="message"
+      ></div>
+
+    </div>
+
+  </div>
+
+
+  <div class="footer">
+    © 2026 ADEZ-MD • WhatsApp Bot
+  </div>
+
+</div>
+
+
+<script>
+
+/*
+|--------------------------------------------------------------------------
+| Tabs
+|--------------------------------------------------------------------------
+*/
+
+function showTab(tab){
+
+  document
+    .querySelectorAll(".tab")
+    .forEach(button => {
+      button.classList.remove("active");
+    });
+
+  document
+    .querySelectorAll(".section")
+    .forEach(section => {
+      section.classList.remove("active");
+    });
+
+  if(tab === "pair"){
+
+    document
+      .querySelectorAll(".tab")[0]
+      .classList.add("active");
+
+    document
+      .getElementById("pair")
+      .classList.add("active");
+
+  }
+
+  if(tab === "qr"){
+
+    document
+      .querySelectorAll(".tab")[1]
+      .classList.add("active");
+
+    document
+      .getElementById("qr")
+      .classList.add("active");
+
+    loadQR();
+
+  }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Get server status
+|--------------------------------------------------------------------------
+*/
+
+async function loadStatus(){
+
+  try{
+
+    const response =
+      await fetch("/api/status");
+
+    const data =
+      await response.json();
+
+    const status =
+      document.getElementById("status");
+
+    if(data.connected){
+
+      status.textContent =
+        "Connected";
+
+    }else if(data.status === "pairing"){
+
+      status.textContent =
+        "Pairing...";
+
+    }else if(data.hasQR){
+
+      status.textContent =
+        "Waiting for QR";
+
+    }else{
+
+      status.textContent =
+        data.status || "Connecting...";
+
+    }
+
+    if(data.hasQR){
+      loadQR();
+    }
+
+  }catch(error){
+
+    document.getElementById("status")
+      .textContent = "Server Offline";
+
+  }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Request pairing code
+|--------------------------------------------------------------------------
+*/
+
+async function requestPairing(){
+
+  const phone =
+    document
+      .getElementById("phone")
+      .value
+      .trim();
+
+  const button =
+    document
+      .getElementById("pairButton");
+
+  const message =
+    document
+      .getElementById("pairMessage");
+
+  if(!phone){
+
+    message.textContent =
+      "Enter your WhatsApp number.";
+
+    message.className =
+      "message error";
+
+    return;
+
+  }
+
+  button.disabled = true;
+
+  button.textContent =
+    "GENERATING...";
+
+  message.textContent =
+    "Please wait...";
+
+  message.className =
+    "message";
+
+
+  try{
+
+    const response =
+      await fetch("/api/pair", {
+
+        method:"POST",
+
+        headers:{
+          "Content-Type":
+            "application/json"
+        },
+
+        body:JSON.stringify({
+          number:phone
+        })
+
+      });
+
+
+    const data =
+      await response.json();
+
+
+    if(data.success){
+
+      document
+        .getElementById("pairCode")
+        .textContent =
+        data.code;
+
+      document
+        .getElementById("pairResult")
+        .style.display =
+        "block";
+
+      message.textContent =
+        "Code generated. Enter it in WhatsApp.";
+
+      message.className =
+        "message success";
+
+    }else{
+
+      message.textContent =
+        data.message ||
+        "Pairing failed.";
+
+      message.className =
+        "message error";
+
+    }
+
+  }catch(error){
+
+    message.textContent =
+      "Unable to connect to server.";
+
+    message.className =
+      "message error";
+
+  }
+
+
+  button.disabled = false;
+
+  button.textContent =
+    "GET PAIRING CODE";
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Copy pairing code
+|--------------------------------------------------------------------------
+*/
+
+async function copyCode(){
+
+  const code =
+    document
+      .getElementById("pairCode")
+      .textContent
+      .replace(/-/g,"");
+
+  try{
+
+    await navigator.clipboard.writeText(code);
+
+    alert("Pairing code copied!");
+
+  }catch(error){
+
+    alert("Copy failed. Select the code manually.");
+
+  }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Load QR
+|--------------------------------------------------------------------------
+*/
+
+async function loadQR(){
+
+  const box =
+    document.getElementById("qrBox");
+
+  const message =
+    document.getElementById("qrMessage");
+
+  try{
+
+    const response =
+      await fetch("/api/qr");
+
+    const data =
+      await response.json();
+
+
+    if(data.success){
+
+      box.innerHTML = "";
+
+      const image =
+        document.createElement("img");
+
+      image.src = data.qr;
+
+      image.alt =
+        "ADEZ-MD WhatsApp QR Code";
+
+      box.appendChild(image);
+
+      message.textContent =
+        "Scan this QR code with WhatsApp.";
+
+      message.className =
+        "message success";
+
+    }else{
+
+      box.innerHTML = `
+        <div class="qr-placeholder">
+          ${data.message}
+          <br><br>
+          Waiting for WhatsApp...
+        </div>
+      `;
+
+      message.textContent = "";
+
+    }
+
+  }catch(error){
+
+    box.innerHTML = `
+      <div class="qr-placeholder">
+        Unable to load QR code.
+      </div>
+    `;
+
+  }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Automatic status refresh
+|--------------------------------------------------------------------------
+*/
+
+loadStatus();
+
+setInterval(loadStatus, 3000);
+
+</script>
+
+</body>
+
+  </html>
