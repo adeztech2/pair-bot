@@ -1,3 +1,5 @@
+"index.js"
+
 import express from "express";
 import makeWASocket, {
   useMultiFileAuthState,
@@ -10,6 +12,7 @@ import P from "pino";
 import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -18,39 +21,98 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const logger = P({
-  level: "silent"
-});
+const SESSION_DIR = path.join(__dirname, "sessions");
+
+if (!fs.existsSync(SESSION_DIR)) {
+  fs.mkdirSync(SESSION_DIR, { recursive: true });
+}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
-let sock = null;
-
-let currentQR = null;
-let currentQRImage = null;
-let pairingCode = null;
-let connectionStatus = "disconnected";
-let lastPhoneNumber = null;
-
-let reconnecting = false;
+const logger = P({
+  level: "silent"
+});
 
 /*
 |--------------------------------------------------------------------------
-| Start WhatsApp
+| Device storage
 |--------------------------------------------------------------------------
 */
 
-async function startWhatsApp() {
-  try {
-    const { state, saveCreds } =
-      await useMultiFileAuthState("./session");
+const devices = new Map();
 
-    sock = makeWASocket({
+/*
+|--------------------------------------------------------------------------
+| Generate device ID
+|--------------------------------------------------------------------------
+*/
+
+function createDeviceId() {
+  return crypto.randomBytes(6).toString("hex");
+}
+
+/*
+|--------------------------------------------------------------------------
+| Get device session path
+|--------------------------------------------------------------------------
+*/
+
+function getSessionPath(deviceId) {
+  return path.join(SESSION_DIR, deviceId);
+}
+
+/*
+|--------------------------------------------------------------------------
+| Start a WhatsApp device
+|--------------------------------------------------------------------------
+*/
+
+async function startDevice(deviceId) {
+
+  const sessionPath =
+    getSessionPath(deviceId);
+
+  if (!fs.existsSync(sessionPath)) {
+    fs.mkdirSync(sessionPath, {
+      recursive: true
+    });
+  }
+
+  let device =
+    devices.get(deviceId);
+
+  if (!device) {
+
+    device = {
+      id: deviceId,
+      socket: null,
+      qr: null,
+      qrImage: null,
+      pairingCode: null,
+      status: "starting",
+      phone: null,
+      createdAt: Date.now(),
+      reconnecting: false
+    };
+
+    devices.set(deviceId, device);
+  }
+
+  try {
+
+    const {
+      state,
+      saveCreds
+    } = await useMultiFileAuthState(sessionPath);
+
+    const sock = makeWASocket({
+
       auth: state,
 
-      browser: Browsers.ubuntu("Chrome"),
+      browser:
+        Browsers.ubuntu("ADEZ-MD"),
 
       logger,
 
@@ -59,13 +121,19 @@ async function startWhatsApp() {
       printQRInTerminal: false
     });
 
+    device.socket = sock;
+    device.status = "connecting";
+
     /*
     |--------------------------------------------------------------------------
-    | Save credentials
+    | Save authentication credentials
     |--------------------------------------------------------------------------
     */
 
-    sock.ev.on("creds.update", saveCreds);
+    sock.ev.on(
+      "creds.update",
+      saveCreds
+    );
 
     /*
     |--------------------------------------------------------------------------
@@ -76,6 +144,7 @@ async function startWhatsApp() {
     sock.ev.on(
       "connection.update",
       async (update) => {
+
         const {
           connection,
           lastDisconnect,
@@ -83,87 +152,136 @@ async function startWhatsApp() {
         } = update;
 
         /*
-        |--------------------------------------------------------------------------
-        | QR CODE
-        |--------------------------------------------------------------------------
+        | QR generated
         */
 
         if (qr) {
+
           try {
-            currentQR = qr;
 
-            currentQRImage = await QRCode.toDataURL(qr, {
-              width: 320,
-              margin: 2
-            });
+            device.qr = qr;
 
-            connectionStatus = "waiting_for_qr";
+            device.qrImage =
+              await QRCode.toDataURL(
+                qr,
+                {
+                  width: 350,
+                  margin: 2
+                }
+              );
 
-            console.log("New ADEZ-MD QR code generated.");
+            device.status =
+              "waiting_for_qr";
+
+            console.log(
+              `[${deviceId}] QR generated`
+            );
+
           } catch (error) {
-            console.error("QR generation error:", error);
+
+            console.error(
+              `[${deviceId}] QR error`,
+              error
+            );
+
           }
         }
 
         /*
-        |--------------------------------------------------------------------------
         | Connected
-        |--------------------------------------------------------------------------
         */
 
         if (connection === "open") {
-          connectionStatus = "connected";
 
-          currentQR = null;
-          currentQRImage = null;
-          pairingCode = null;
+          device.status =
+            "connected";
 
-          console.log("ADEZ-MD connected to WhatsApp.");
-        }
+          device.qr = null;
+          device.qrImage = null;
+          device.pairingCode = null;
 
-        /*
-        |--------------------------------------------------------------------------
-        | Connecting
-        |--------------------------------------------------------------------------
-        */
+          if (
+            sock.user &&
+            sock.user.id
+          ) {
 
-        if (connection === "connecting") {
-          connectionStatus = "connecting";
-        }
+            device.phone =
+              sock.user.id
+                .split(":")[0];
 
-        /*
-        |--------------------------------------------------------------------------
-        | Disconnected
-        |--------------------------------------------------------------------------
-        */
-
-        if (connection === "close") {
-          currentQR = null;
-          currentQRImage = null;
-
-          const statusCode =
-            new Boom(lastDisconnect?.error)?.output?.statusCode;
-
-          const shouldReconnect =
-            statusCode !== DisconnectReason.loggedOut;
-
-          connectionStatus = "disconnected";
+          }
 
           console.log(
-            "WhatsApp disconnected.",
-            "Status:",
-            statusCode,
-            "Reconnect:",
-            shouldReconnect
+            `[${deviceId}] Connected`
+          );
+        }
+
+        /*
+        | Connecting
+        */
+
+        if (
+          connection === "connecting"
+        ) {
+
+          device.status =
+            "connecting";
+        }
+
+        /*
+        | Disconnected
+        */
+
+        if (
+          connection === "close"
+        ) {
+
+          device.qr = null;
+          device.qrImage = null;
+
+          const statusCode =
+            new Boom(
+              lastDisconnect?.error
+            )
+              ?.output
+              ?.statusCode;
+
+          const shouldReconnect =
+            statusCode !==
+            DisconnectReason.loggedOut;
+
+          device.status =
+            "disconnected";
+
+          console.log(
+            `[${deviceId}] Disconnected`
           );
 
-          if (shouldReconnect && !reconnecting) {
-            reconnecting = true;
+          /*
+          | Automatic reconnection
+          */
 
-            setTimeout(async () => {
-              reconnecting = false;
-              await startWhatsApp();
-            }, 3000);
+          if (
+            shouldReconnect &&
+            !device.reconnecting
+          ) {
+
+            device.reconnecting =
+              true;
+
+            setTimeout(
+              async () => {
+
+                device.reconnecting =
+                  false;
+
+                await startDevice(
+                  deviceId
+                );
+
+              },
+              3000
+            );
           }
         }
       }
@@ -171,27 +289,29 @@ async function startWhatsApp() {
 
     /*
     |--------------------------------------------------------------------------
-    | Basic message handler
+    | Example ADEZ-MD bot handler
     |--------------------------------------------------------------------------
-    |
-    | This is only a simple test response.
-    | You can replace it later with your complete ADEZ-MD bot.
-    |
     */
 
     sock.ev.on(
       "messages.upsert",
       async ({ messages }) => {
+
         try {
-          const message = messages[0];
+
+          const message =
+            messages?.[0];
 
           if (!message) return;
 
-          if (message.key.fromMe) return;
+          if (message.key.fromMe)
+            return;
 
-          if (!message.message) return;
+          if (!message.message)
+            return;
 
-          const jid = message.key.remoteJid;
+          const jid =
+            message.key.remoteJid;
 
           if (!jid) return;
 
@@ -200,182 +320,494 @@ async function startWhatsApp() {
             message.message.extendedTextMessage?.text ||
             "";
 
-          if (text.toLowerCase() === ".ping") {
-            await sock.sendMessage(jid, {
-              text: "🏓 ADEZ-MD is online!"
-            });
+          /*
+          | Test command
+          */
+
+          if (
+            text.toLowerCase() ===
+            ".ping"
+          ) {
+
+            await sock.sendMessage(
+              jid,
+              {
+                text:
+                  "🏓 ADEZ-MD is online!"
+              }
+            );
           }
 
         } catch (error) {
-          console.error("Message error:", error);
+
+          console.error(
+            `[${deviceId}] Message error`,
+            error
+          );
+
         }
       }
     );
 
   } catch (error) {
-    console.error("WhatsApp startup error:", error);
 
-    connectionStatus = "error";
+    console.error(
+      `[${deviceId}] Startup error`,
+      error
+    );
 
-    if (!reconnecting) {
-      reconnecting = true;
+    device.status = "error";
 
-      setTimeout(async () => {
-        reconnecting = false;
-        await startWhatsApp();
-      }, 5000);
+    if (!device.reconnecting) {
+
+      device.reconnecting =
+        true;
+
+      setTimeout(
+        async () => {
+
+          device.reconnecting =
+            false;
+
+          await startDevice(
+            deviceId
+          );
+
+        },
+        5000
+      );
     }
   }
 }
 
 /*
 |--------------------------------------------------------------------------
-| Home page
+| Create new device
 |--------------------------------------------------------------------------
 */
 
-app.get("/", (req, res) => {
-  res.sendFile(
-    path.join(__dirname, "public", "index.html")
-  );
-});
+app.post(
+  "/api/device/create",
+  async (req, res) => {
 
-/*
-|--------------------------------------------------------------------------
-| Status API
-|--------------------------------------------------------------------------
-*/
+    try {
 
-app.get("/api/status", (req, res) => {
-  res.json({
-    success: true,
-    status: connectionStatus,
-    connected: connectionStatus === "connected",
-    hasQR: Boolean(currentQRImage),
-    hasPairingCode: Boolean(pairingCode)
-  });
-});
+      const deviceId =
+        createDeviceId();
 
-/*
-|--------------------------------------------------------------------------
-| QR API
-|--------------------------------------------------------------------------
-*/
+      await startDevice(
+        deviceId
+      );
 
-app.get("/api/qr", (req, res) => {
-  if (!currentQRImage) {
-    return res.json({
-      success: false,
-      message: "QR code is not available yet."
-    });
+      res.json({
+
+        success: true,
+
+        deviceId,
+
+        message:
+          "New ADEZ-MD device created."
+
+      });
+
+    } catch (error) {
+
+      console.error(error);
+
+      res.status(500).json({
+
+        success: false,
+
+        message:
+          "Could not create device."
+
+      });
+    }
   }
-
-  res.json({
-    success: true,
-    qr: currentQRImage
-  });
-});
+);
 
 /*
 |--------------------------------------------------------------------------
-| Pairing code API
+| Device information
 |--------------------------------------------------------------------------
 */
 
-app.post("/api/pair", async (req, res) => {
-  try {
-    let number = String(
-      req.body.number || ""
-    ).replace(/\D/g, "");
+app.get(
+  "/api/device/:id",
+  (req, res) => {
 
-    /*
-    |--------------------------------------------------------------------------
-    | Example:
-    | Kenya:
-    | 254712345678
-    |
-    | Do NOT send:
-    | +254712345678
-    | 0712345678
-    |--------------------------------------------------------------------------
-    */
+    const device =
+      devices.get(
+        req.params.id
+      );
 
-    if (!number) {
-      return res.status(400).json({
+    if (!device) {
+
+      return res.status(404).json({
+
         success: false,
-        message: "Enter your WhatsApp number with country code."
+
+        message:
+          "Device not found."
+
       });
     }
-
-    if (number.length < 8) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid phone number."
-      });
-    }
-
-    if (!sock) {
-      return res.status(503).json({
-        success: false,
-        message: "WhatsApp connection is starting. Try again."
-      });
-    }
-
-    if (sock.authState?.creds?.registered) {
-      return res.status(400).json({
-        success: false,
-        message: "This ADEZ-MD session is already paired."
-      });
-    }
-
-    lastPhoneNumber = number;
-
-    connectionStatus = "pairing";
-
-    pairingCode =
-      await sock.requestPairingCode(number);
-
-    /*
-    |--------------------------------------------------------------------------
-    | Format code for display
-    |--------------------------------------------------------------------------
-    */
-
-    pairingCode =
-      pairingCode?.match(/.{1,4}/g)?.join("-") ||
-      pairingCode;
 
     res.json({
+
       success: true,
-      code: pairingCode,
-      message: "Pairing code generated."
-    });
 
-  } catch (error) {
-    console.error("Pairing error:", error);
+      device: {
 
-    res.status(500).json({
-      success: false,
-      message: "Could not generate pairing code."
+        id: device.id,
+
+        status: device.status,
+
+        phone: device.phone,
+
+        hasQR:
+          Boolean(device.qrImage),
+
+        hasPairingCode:
+          Boolean(
+            device.pairingCode
+          )
+
+      }
+
     });
   }
-});
+);
 
 /*
 |--------------------------------------------------------------------------
-| Reset displayed pairing data
+| QR code
 |--------------------------------------------------------------------------
 */
 
-app.post("/api/reset", (req, res) => {
-  currentQR = null;
-  currentQRImage = null;
-  pairingCode = null;
+app.get(
+  "/api/device/:id/qr",
+  (req, res) => {
 
-  res.json({
-    success: true
-  });
-});
+    const device =
+      devices.get(
+        req.params.id
+      );
+
+    if (!device) {
+
+      return res.status(404).json({
+
+        success: false,
+
+        message:
+          "Device not found."
+
+      });
+    }
+
+    if (!device.qrImage) {
+
+      return res.json({
+
+        success: false,
+
+        message:
+          "QR code is not available yet."
+
+      });
+    }
+
+    res.json({
+
+      success: true,
+
+      qr:
+        device.qrImage
+
+    });
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| Pairing code
+|--------------------------------------------------------------------------
+*/
+
+app.post(
+  "/api/device/:id/pair",
+  async (req, res) => {
+
+    try {
+
+      const device =
+        devices.get(
+          req.params.id
+        );
+
+      if (!device) {
+
+        return res.status(404).json({
+
+          success: false,
+
+          message:
+            "Device not found."
+
+        });
+      }
+
+      if (!device.socket) {
+
+        return res.status(503).json({
+
+          success: false,
+
+          message:
+            "WhatsApp socket is not ready."
+
+        });
+      }
+
+      let number =
+        String(
+          req.body.number || ""
+        ).replace(/\D/g, "");
+
+      if (!number) {
+
+        return res.status(400).json({
+
+          success: false,
+
+          message:
+            "Enter your phone number with country code."
+
+        });
+      }
+
+      if (number.length < 8) {
+
+        return res.status(400).json({
+
+          success: false,
+
+          message:
+            "Invalid phone number."
+
+        });
+      }
+
+      /*
+      | Do not request another pairing
+      | after the account is registered.
+      */
+
+      if (
+        device.socket.authState
+          ?.creds?.registered
+      ) {
+
+        return res.status(400).json({
+
+          success: false,
+
+          message:
+            "This device is already paired."
+
+        });
+      }
+
+      device.phone =
+        number;
+
+      device.status =
+        "pairing";
+
+      /*
+      | Baileys expects the number
+      | in international format.
+      */
+
+      const code =
+        await device.socket
+          .requestPairingCode(
+            number
+          );
+
+      device.pairingCode =
+        code;
+
+      res.json({
+
+        success: true,
+
+        deviceId:
+          device.id,
+
+        code,
+
+        message:
+          "Pairing code generated."
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        "Pairing error:",
+        error
+      );
+
+      res.status(500).json({
+
+        success: false,
+
+        message:
+          "Unable to generate pairing code."
+
+      });
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| Logout one device
+|--------------------------------------------------------------------------
+*/
+
+app.post(
+  "/api/device/:id/logout",
+  async (req, res) => {
+
+    const device =
+      devices.get(
+        req.params.id
+      );
+
+    if (!device) {
+
+      return res.status(404).json({
+
+        success: false,
+
+        message:
+          "Device not found."
+
+      });
+    }
+
+    try {
+
+      if (device.socket) {
+
+        await device.socket.logout();
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        "Logout error:",
+        error
+      );
+    }
+
+    devices.delete(
+      req.params.id
+    );
+
+    const sessionPath =
+      getSessionPath(
+        req.params.id
+      );
+
+    fs.rmSync(
+      sessionPath,
+      {
+        recursive: true,
+        force: true
+      }
+    );
+
+    res.json({
+
+      success: true,
+
+      message:
+        "Device logged out."
+
+    });
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| List active devices
+|--------------------------------------------------------------------------
+*/
+
+app.get(
+  "/api/devices",
+  (req, res) => {
+
+    const list =
+      [...devices.values()]
+        .map(device => ({
+
+          id:
+            device.id,
+
+          status:
+            device.status,
+
+          phone:
+            device.phone,
+
+          hasQR:
+            Boolean(
+              device.qrImage
+            ),
+
+          hasPairingCode:
+            Boolean(
+              device.pairingCode
+            )
+
+        }));
+
+    res.json({
+
+      success: true,
+
+      devices: list
+
+    });
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| Home
+|--------------------------------------------------------------------------
+*/
+
+app.get(
+  "*",
+  (req, res) => {
+
+    res.sendFile(
+      path.join(
+        __dirname,
+        "public",
+        "index.html"
+      )
+    );
+
+  }
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -383,14 +815,27 @@ app.post("/api/reset", (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-app.listen(PORT, () => {
-  console.log("");
-  console.log("=================================");
-  console.log("        ADEZ-MD PAIRING");
-  console.log("=================================");
-  console.log(`Server running on port ${PORT}`);
-  console.log("=================================");
-  console.log("");
+app.listen(
+  PORT,
+  () => {
 
-  startWhatsApp();
-});
+    console.log("");
+    console.log(
+      "===================================="
+    );
+    console.log(
+      "          ADEZ-MD MULTI DEVICE"
+    );
+    console.log(
+      "===================================="
+    );
+    console.log(
+      `Server running on port ${PORT}`
+    );
+    console.log(
+      "===================================="
+    );
+    console.log("");
+
+  }
+);
