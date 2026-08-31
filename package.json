@@ -1,7 +1,9 @@
+"package.json"
+
 {
-  "name": "adez-md-pairing",
-  "version": "1.0.0",
-  "description": "ADEZ-MD WhatsApp QR and Pairing Code Website",
+  "name": "adez-md-multi-device",
+  "version": "2.0.0",
+  "description": "ADEZ-MD Multi-Device WhatsApp Pairing System",
   "type": "module",
   "main": "index.js",
   "scripts": {
