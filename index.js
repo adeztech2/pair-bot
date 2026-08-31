@@ -1,12 +1,9 @@
-"index.js"
-
 import express from "express";
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
   Browsers
 } from "@whiskeysockets/baileys";
-
 import { Boom } from "@hapi/boom";
 import P from "pino";
 import QRCode from "qrcode";
@@ -21,711 +18,422 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const SESSION_DIR = path.join(__dirname, "sessions");
+const SESSION_ROOT = path.join(__dirname, "sessions");
 
-if (!fs.existsSync(SESSION_DIR)) {
-  fs.mkdirSync(SESSION_DIR, { recursive: true });
+if (!fs.existsSync(SESSION_ROOT)) {
+  fs.mkdirSync(SESSION_ROOT, { recursive: true });
 }
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
-const logger = P({
-  level: "silent"
-});
-
-/*
-|--------------------------------------------------------------------------
-| Device storage
-|--------------------------------------------------------------------------
-*/
+const logger = P({ level: "silent" });
 
 const devices = new Map();
 
-/*
-|--------------------------------------------------------------------------
-| Generate device ID
-|--------------------------------------------------------------------------
-*/
-
 function createDeviceId() {
-  return crypto.randomBytes(6).toString("hex");
+  return crypto.randomBytes(8).toString("hex");
 }
 
-/*
-|--------------------------------------------------------------------------
-| Get device session path
-|--------------------------------------------------------------------------
-*/
-
-function getSessionPath(deviceId) {
-  return path.join(SESSION_DIR, deviceId);
+function getSessionPath(id) {
+  return path.join(SESSION_ROOT, id);
 }
 
-/*
-|--------------------------------------------------------------------------
-| Start a WhatsApp device
-|--------------------------------------------------------------------------
-*/
-
-async function startDevice(deviceId) {
-
-  const sessionPath =
-    getSessionPath(deviceId);
-
-  if (!fs.existsSync(sessionPath)) {
-    fs.mkdirSync(sessionPath, {
-      recursive: true
-    });
-  }
-
-  let device =
-    devices.get(deviceId);
+async function startDevice(id) {
+  let device = devices.get(id);
 
   if (!device) {
-
     device = {
-      id: deviceId,
+      id,
       socket: null,
+      status: "starting",
       qr: null,
       qrImage: null,
       pairingCode: null,
-      status: "starting",
       phone: null,
-      createdAt: Date.now(),
-      reconnecting: false
+      reconnecting: false,
+      createdAt: Date.now()
     };
 
-    devices.set(deviceId, device);
+    devices.set(id, device);
   }
 
+  const folder = getSessionPath(id);
+
+  fs.mkdirSync(folder, { recursive: true });
+
   try {
+    const { state, saveCreds } =
+      await useMultiFileAuthState(folder);
 
-    const {
-      state,
-      saveCreds
-    } = await useMultiFileAuthState(sessionPath);
-
-    const sock = makeWASocket({
-
+    const socket = makeWASocket({
       auth: state,
-
-      browser:
-        Browsers.ubuntu("ADEZ-MD"),
-
+      browser: Browsers.ubuntu("ADEZ-MD"),
       logger,
-
-      markOnlineOnConnect: false,
-
-      printQRInTerminal: false
+      printQRInTerminal: false,
+      markOnlineOnConnect: false
     });
 
-    device.socket = sock;
+    device.socket = socket;
     device.status = "connecting";
 
-    /*
-    |--------------------------------------------------------------------------
-    | Save authentication credentials
-    |--------------------------------------------------------------------------
-    */
+    socket.ev.on("creds.update", saveCreds);
 
-    sock.ev.on(
-      "creds.update",
-      saveCreds
-    );
+    socket.ev.on("connection.update", async (update) => {
+      const {
+        connection,
+        lastDisconnect,
+        qr
+      } = update;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Connection updates
-    |--------------------------------------------------------------------------
-    */
-
-    sock.ev.on(
-      "connection.update",
-      async (update) => {
-
-        const {
-          connection,
-          lastDisconnect,
-          qr
-        } = update;
-
-        /*
-        | QR generated
-        */
-
-        if (qr) {
-
-          try {
-
-            device.qr = qr;
-
-            device.qrImage =
-              await QRCode.toDataURL(
-                qr,
-                {
-                  width: 350,
-                  margin: 2
-                }
-              );
-
-            device.status =
-              "waiting_for_qr";
-
-            console.log(
-              `[${deviceId}] QR generated`
-            );
-
-          } catch (error) {
-
-            console.error(
-              `[${deviceId}] QR error`,
-              error
-            );
-
-          }
-        }
-
-        /*
-        | Connected
-        */
-
-        if (connection === "open") {
-
-          device.status =
-            "connected";
-
-          device.qr = null;
-          device.qrImage = null;
-          device.pairingCode = null;
-
-          if (
-            sock.user &&
-            sock.user.id
-          ) {
-
-            device.phone =
-              sock.user.id
-                .split(":")[0];
-
-          }
-
-          console.log(
-            `[${deviceId}] Connected`
-          );
-        }
-
-        /*
-        | Connecting
-        */
-
-        if (
-          connection === "connecting"
-        ) {
-
-          device.status =
-            "connecting";
-        }
-
-        /*
-        | Disconnected
-        */
-
-        if (
-          connection === "close"
-        ) {
-
-          device.qr = null;
-          device.qrImage = null;
-
-          const statusCode =
-            new Boom(
-              lastDisconnect?.error
-            )
-              ?.output
-              ?.statusCode;
-
-          const shouldReconnect =
-            statusCode !==
-            DisconnectReason.loggedOut;
-
-          device.status =
-            "disconnected";
-
-          console.log(
-            `[${deviceId}] Disconnected`
-          );
-
-          /*
-          | Automatic reconnection
-          */
-
-          if (
-            shouldReconnect &&
-            !device.reconnecting
-          ) {
-
-            device.reconnecting =
-              true;
-
-            setTimeout(
-              async () => {
-
-                device.reconnecting =
-                  false;
-
-                await startDevice(
-                  deviceId
-                );
-
-              },
-              3000
-            );
-          }
-        }
-      }
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Example ADEZ-MD bot handler
-    |--------------------------------------------------------------------------
-    */
-
-    sock.ev.on(
-      "messages.upsert",
-      async ({ messages }) => {
+      if (qr) {
+        device.qr = qr;
 
         try {
+          device.qrImage =
+            await QRCode.toDataURL(qr, {
+              width: 360,
+              margin: 2
+            });
 
-          const message =
-            messages?.[0];
+          device.status = "waiting_for_qr";
+        } catch (error) {
+          console.error("QR error:", error);
+        }
+      }
+
+      if (connection === "open") {
+        device.status = "connected";
+
+        device.qr = null;
+        device.qrImage = null;
+        device.pairingCode = null;
+
+        if (socket.user?.id) {
+          device.phone =
+            socket.user.id
+              .split(":")[0]
+              .split("@")[0];
+        }
+
+        console.log(
+          `[${id}] ADEZ-MD connected`
+        );
+      }
+
+      if (connection === "connecting") {
+        device.status = "connecting";
+      }
+
+      if (connection === "close") {
+        device.qr = null;
+        device.qrImage = null;
+
+        const status =
+          new Boom(lastDisconnect?.error)
+            ?.output
+            ?.statusCode;
+
+        const loggedOut =
+          status === DisconnectReason.loggedOut;
+
+        device.status =
+          loggedOut
+            ? "logged_out"
+            : "disconnected";
+
+        if (
+          !loggedOut &&
+          !device.reconnecting
+        ) {
+          device.reconnecting = true;
+
+          setTimeout(async () => {
+            device.reconnecting = false;
+
+            try {
+              await startDevice(id);
+            } catch (error) {
+              console.error(
+                `[${id}] reconnect error`,
+                error
+              );
+            }
+          }, 3000);
+        }
+      }
+    });
+
+    socket.ev.on(
+      "messages.upsert",
+      async ({ messages }) => {
+        try {
+          const message = messages?.[0];
 
           if (!message) return;
+          if (message.key.fromMe) return;
 
-          if (message.key.fromMe)
-            return;
-
-          if (!message.message)
-            return;
-
-          const jid =
-            message.key.remoteJid;
+          const jid = message.key.remoteJid;
 
           if (!jid) return;
 
           const text =
-            message.message.conversation ||
-            message.message.extendedTextMessage?.text ||
+            message.message?.conversation ||
+            message.message
+              ?.extendedTextMessage?.text ||
             "";
 
-          /*
-          | Test command
-          */
-
           if (
-            text.toLowerCase() ===
-            ".ping"
+            text.toLowerCase() === ".ping"
           ) {
-
-            await sock.sendMessage(
-              jid,
-              {
-                text:
-                  "🏓 ADEZ-MD is online!"
-              }
-            );
+            await socket.sendMessage(jid, {
+              text:
+                "🏓 ADEZ-MD ONLINE\n\n" +
+                "Multi-device system active."
+            });
           }
-
         } catch (error) {
-
           console.error(
-            `[${deviceId}] Message error`,
+            `[${id}] message error`,
             error
           );
-
         }
       }
     );
 
   } catch (error) {
+    device.status = "error";
 
     console.error(
-      `[${deviceId}] Startup error`,
+      `[${id}] startup error`,
       error
     );
 
-    device.status = "error";
-
     if (!device.reconnecting) {
+      device.reconnecting = true;
 
-      device.reconnecting =
-        true;
-
-      setTimeout(
-        async () => {
-
-          device.reconnecting =
-            false;
-
-          await startDevice(
-            deviceId
-          );
-
-        },
-        5000
-      );
+      setTimeout(async () => {
+        device.reconnecting = false;
+        await startDevice(id);
+      }, 5000);
     }
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Create new device
-|--------------------------------------------------------------------------
-*/
-
 app.post(
   "/api/device/create",
   async (req, res) => {
-
     try {
+      const id = createDeviceId();
 
-      const deviceId =
-        createDeviceId();
-
-      await startDevice(
-        deviceId
-      );
+      await startDevice(id);
 
       res.json({
-
         success: true,
-
-        deviceId,
-
-        message:
-          "New ADEZ-MD device created."
-
+        deviceId: id
       });
-
     } catch (error) {
-
       console.error(error);
 
       res.status(500).json({
-
         success: false,
-
-        message:
-          "Could not create device."
-
+        message: "Could not create device."
       });
     }
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| Device information
-|--------------------------------------------------------------------------
-*/
+app.get(
+  "/api/devices",
+  (req, res) => {
+    const list =
+      [...devices.values()].map(device => ({
+        id: device.id,
+        status: device.status,
+        phone: device.phone,
+        hasQR: Boolean(device.qrImage),
+        hasPairingCode:
+          Boolean(device.pairingCode),
+        createdAt: device.createdAt
+      }));
+
+    res.json({
+      success: true,
+      devices: list
+    });
+  }
+);
 
 app.get(
   "/api/device/:id",
   (req, res) => {
-
     const device =
-      devices.get(
-        req.params.id
-      );
+      devices.get(req.params.id);
 
     if (!device) {
-
       return res.status(404).json({
-
         success: false,
-
-        message:
-          "Device not found."
-
+        message: "Device not found."
       });
     }
 
     res.json({
-
       success: true,
-
       device: {
-
         id: device.id,
-
         status: device.status,
-
         phone: device.phone,
-
-        hasQR:
-          Boolean(device.qrImage),
-
+        hasQR: Boolean(device.qrImage),
         hasPairingCode:
-          Boolean(
-            device.pairingCode
-          )
-
+          Boolean(device.pairingCode)
       }
-
     });
   }
 );
-
-/*
-|--------------------------------------------------------------------------
-| QR code
-|--------------------------------------------------------------------------
-*/
 
 app.get(
   "/api/device/:id/qr",
   (req, res) => {
-
     const device =
-      devices.get(
-        req.params.id
-      );
+      devices.get(req.params.id);
 
     if (!device) {
-
       return res.status(404).json({
-
         success: false,
-
-        message:
-          "Device not found."
-
+        message: "Device not found."
       });
     }
 
     if (!device.qrImage) {
-
       return res.json({
-
         success: false,
-
         message:
-          "QR code is not available yet."
-
+          "QR code is not ready yet."
       });
     }
 
     res.json({
-
       success: true,
-
-      qr:
-        device.qrImage
-
+      qr: device.qrImage
     });
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| Pairing code
-|--------------------------------------------------------------------------
-*/
-
 app.post(
   "/api/device/:id/pair",
   async (req, res) => {
-
     try {
-
       const device =
-        devices.get(
-          req.params.id
-        );
+        devices.get(req.params.id);
 
       if (!device) {
-
         return res.status(404).json({
-
           success: false,
-
-          message:
-            "Device not found."
-
+          message: "Device not found."
         });
       }
 
       if (!device.socket) {
-
         return res.status(503).json({
-
           success: false,
-
           message:
-            "WhatsApp socket is not ready."
-
+            "WhatsApp is still starting."
         });
       }
 
-      let number =
-        String(
-          req.body.number || ""
-        ).replace(/\D/g, "");
+      const number =
+        String(req.body.number || "")
+          .replace(/\D/g, "");
 
       if (!number) {
-
         return res.status(400).json({
-
           success: false,
-
           message:
-            "Enter your phone number with country code."
-
+            "Enter your number with country code."
         });
       }
 
       if (number.length < 8) {
-
         return res.status(400).json({
-
           success: false,
-
           message:
             "Invalid phone number."
-
         });
       }
-
-      /*
-      | Do not request another pairing
-      | after the account is registered.
-      */
 
       if (
         device.socket.authState
           ?.creds?.registered
       ) {
-
         return res.status(400).json({
-
           success: false,
-
           message:
             "This device is already paired."
-
         });
       }
 
-      device.phone =
-        number;
-
-      device.status =
-        "pairing";
-
-      /*
-      | Baileys expects the number
-      | in international format.
-      */
+      device.status = "pairing";
+      device.phone = number;
 
       const code =
         await device.socket
-          .requestPairingCode(
-            number
-          );
+          .requestPairingCode(number);
 
-      device.pairingCode =
-        code;
+      device.pairingCode = code;
 
       res.json({
-
         success: true,
-
-        deviceId:
-          device.id,
-
+        deviceId: device.id,
         code,
-
         message:
           "Pairing code generated."
-
       });
 
     } catch (error) {
-
       console.error(
         "Pairing error:",
         error
       );
 
       res.status(500).json({
-
         success: false,
-
         message:
-          "Unable to generate pairing code."
-
+          "Could not generate pairing code."
       });
     }
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| Logout one device
-|--------------------------------------------------------------------------
-*/
-
 app.post(
   "/api/device/:id/logout",
   async (req, res) => {
+    const id = req.params.id;
 
-    const device =
-      devices.get(
-        req.params.id
-      );
+    const device = devices.get(id);
 
     if (!device) {
-
       return res.status(404).json({
-
         success: false,
-
-        message:
-          "Device not found."
-
+        message: "Device not found."
       });
     }
 
     try {
-
       if (device.socket) {
-
         await device.socket.logout();
-
       }
-
     } catch (error) {
-
       console.error(
-        "Logout error:",
+        `[${id}] logout error`,
         error
       );
     }
 
-    devices.delete(
-      req.params.id
-    );
-
-    const sessionPath =
-      getSessionPath(
-        req.params.id
-      );
+    devices.delete(id);
 
     fs.rmSync(
-      sessionPath,
+      getSessionPath(id),
       {
         recursive: true,
         force: true
@@ -733,71 +441,26 @@ app.post(
     );
 
     res.json({
-
       success: true,
-
-      message:
-        "Device logged out."
-
+      message: "Device logged out."
     });
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| List active devices
-|--------------------------------------------------------------------------
-*/
-
 app.get(
-  "/api/devices",
+  "/health",
   (req, res) => {
-
-    const list =
-      [...devices.values()]
-        .map(device => ({
-
-          id:
-            device.id,
-
-          status:
-            device.status,
-
-          phone:
-            device.phone,
-
-          hasQR:
-            Boolean(
-              device.qrImage
-            ),
-
-          hasPairingCode:
-            Boolean(
-              device.pairingCode
-            )
-
-        }));
-
     res.json({
-
-      success: true,
-
-      devices: list
-
+      status: "ok",
+      service: "ADEZ-MD",
+      devices: devices.size
     });
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| Home
-|--------------------------------------------------------------------------
-*/
-
 app.get(
-  "*",
+  "/",
   (req, res) => {
-
     res.sendFile(
       path.join(
         __dirname,
@@ -805,37 +468,37 @@ app.get(
         "index.html"
       )
     );
-
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| Start server
-|--------------------------------------------------------------------------
-*/
-
-app.listen(
-  PORT,
-  () => {
-
-    console.log("");
-    console.log(
-      "===================================="
+app.get(
+  "/{*splat}",
+  (req, res) => {
+    res.sendFile(
+      path.join(
+        __dirname,
+        "public",
+        "index.html"
+      )
     );
-    console.log(
-      "          ADEZ-MD MULTI DEVICE"
-    );
-    console.log(
-      "===================================="
-    );
-    console.log(
-      `Server running on port ${PORT}`
-    );
-    console.log(
-      "===================================="
-    );
-    console.log("");
-
   }
 );
+
+app.listen(PORT, () => {
+  console.log(
+    "================================"
+  );
+  console.log(
+    "       ADEZ-MD MULTI DEVICE"
+  );
+  console.log(
+    "================================"
+  );
+  console.log(`Port: ${PORT}`);
+  console.log(
+    `Sessions: ${SESSION_ROOT}`
+  );
+  console.log(
+    "================================"
+  );
+});
