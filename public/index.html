@@ -1,21 +1,12 @@
-"public/index.html"
-
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
 <meta charset="UTF-8">
-
-<meta
-  name="viewport"
-  content="width=device-width, initial-scale=1.0"
->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>ADEZ-MD | Multi Device</title>
 
 <style>
-
 *{
   box-sizing:border-box;
   margin:0;
@@ -31,20 +22,19 @@ body{
 }
 
 .container{
-  width:100%;
-  max-width:900px;
+  max-width:850px;
   margin:auto;
 }
 
 .header{
   text-align:center;
-  margin:25px 0;
+  padding:35px 0 25px;
 }
 
 .header h1{
   font-size:42px;
-  letter-spacing:5px;
   font-weight:900;
+  letter-spacing:6px;
 }
 
 .header p{
@@ -54,32 +44,33 @@ body{
 
 .card{
   background:#0d0d0d;
-  border:1px solid #242424;
+  border:1px solid #252525;
   border-radius:20px;
-  padding:25px;
-  margin-bottom:20px;
-}
-
-button{
-  cursor:pointer;
+  padding:22px;
 }
 
 .primary{
   width:100%;
-  border:0;
-  border-radius:12px;
   padding:15px;
+  border:0;
+  border-radius:11px;
   background:#fff;
   color:#000;
   font-weight:900;
-  font-size:15px;
+  cursor:pointer;
+}
+
+.primary:active{
+  transform:scale(.98);
 }
 
 .devices{
   display:grid;
-  grid-template-columns:
-    repeat(auto-fit,minmax(260px,1fr));
-  gap:15px;
+  grid-template-columns:repeat(
+    auto-fit,
+    minmax(260px,1fr)
+  );
+  gap:14px;
   margin-top:20px;
 }
 
@@ -91,55 +82,60 @@ button{
 }
 
 .device h3{
-  margin-bottom:12px;
+  margin-bottom:10px;
 }
 
 .device p{
-  color:#888;
+  color:#777;
   font-size:13px;
   margin:7px 0;
+  word-break:break-all;
 }
 
-.badge{
+.status{
   display:inline-block;
-  background:#1c1c1c;
-  border-radius:20px;
+  background:#1d1d1d;
   padding:6px 10px;
+  border-radius:20px;
   font-size:11px;
-  margin:5px 0 12px;
+  margin-bottom:10px;
 }
 
 .device button{
   width:100%;
   padding:11px;
-  border-radius:9px;
-  border:1px solid #333;
+  margin-top:8px;
   background:#191919;
   color:#fff;
-  margin-top:8px;
+  border:1px solid #333;
+  border-radius:9px;
+  cursor:pointer;
 }
 
 .modal{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,.85);
+  background:rgba(0,0,0,.9);
   display:none;
   align-items:center;
   justify-content:center;
   padding:20px;
+  z-index:1000;
 }
 
-.modal.active{
+.modal.show{
   display:flex;
 }
 
 .modal-box{
   width:100%;
   max-width:430px;
+  max-height:90vh;
+  overflow-y:auto;
   background:#0d0d0d;
   border:1px solid #333;
   border-radius:20px;
-  padding:25px;
+  padding:22px;
 }
 
 .modal-box h2{
@@ -147,7 +143,7 @@ button{
   margin-bottom:8px;
 }
 
-.modal-box p{
+.modal-box > p{
   text-align:center;
   color:#777;
   font-size:13px;
@@ -155,58 +151,97 @@ button{
   margin-bottom:18px;
 }
 
+.option{
+  width:100%;
+  padding:13px;
+  background:#171717;
+  color:#fff;
+  border:1px solid #333;
+  border-radius:10px;
+  margin-top:8px;
+  cursor:pointer;
+}
+
+.area{
+  display:none;
+  margin-top:18px;
+}
+
 input{
   width:100%;
   padding:14px;
   background:#151515;
-  border:1px solid #333;
   color:#fff;
+  border:1px solid #333;
   border-radius:10px;
-  margin-bottom:10px;
   outline:none;
+  margin-bottom:10px;
+  font-size:15px;
+}
+
+input:focus{
+  border-color:#777;
 }
 
 .code{
+  text-align:center;
   font-size:28px;
   font-weight:900;
-  text-align:center;
-  letter-spacing:4px;
-  padding:20px 5px;
+  letter-spacing:5px;
+  padding:20px 0;
+  word-break:break-all;
 }
 
 .qr{
-  width:300px;
+  display:none;
+  width:290px;
   max-width:100%;
-  display:block;
-  margin:15px auto;
-  background:#fff;
+  margin:10px auto;
   padding:10px;
+  background:#fff;
   border-radius:10px;
-}
-
-.close{
-  width:100%;
-  padding:12px;
-  border-radius:10px;
-  border:1px solid #333;
-  background:#151515;
-  color:#fff;
-  margin-top:10px;
 }
 
 .message{
   text-align:center;
-  color:#888;
+  color:#777;
   font-size:13px;
+  margin-top:10px;
+  line-height:1.5;
+}
+
+.close{
+  width:100%;
   margin-top:12px;
+  padding:12px;
+  background:#111;
+  color:#fff;
+  border:1px solid #333;
+  border-radius:10px;
+  cursor:pointer;
 }
 
-.danger{
-  color:#ff6b6b;
+.empty{
+  grid-column:1/-1;
+  text-align:center;
+  color:#666;
+  padding:25px;
 }
 
+@media(max-width:500px){
+  body{
+    padding:12px;
+  }
+
+  .header h1{
+    font-size:34px;
+  }
+
+  .card{
+    padding:15px;
+  }
+}
 </style>
-
 </head>
 
 <body>
@@ -214,21 +249,15 @@ input{
 <div class="container">
 
   <div class="header">
-
     <h1>ADEZ-MD</h1>
-
-    <p>
-      Multi-Device WhatsApp Pairing
-    </p>
-
+    <p>Multi-Device WhatsApp Pairing</p>
   </div>
-
 
   <div class="card">
 
     <button
       class="primary"
-      onclick="createDevice()"
+      onclick="newDevice()"
     >
       + PAIR NEW DEVICE
     </button>
@@ -243,7 +272,7 @@ input{
 </div>
 
 
-<!-- DEVICE MODAL -->
+<!-- MODAL -->
 
 <div
   id="modal"
@@ -252,53 +281,57 @@ input{
 
   <div class="modal-box">
 
-    <h2 id="modalTitle">
-      ADEZ-MD Device
-    </h2>
+    <h2>ADEZ-MD Device</h2>
 
-    <p id="modalText">
-      Select a pairing method.
+    <p>
+      Choose how you want to connect
+      this WhatsApp account.
     </p>
 
-
     <button
-      class="primary"
-      onclick="showPair()"
+      class="option"
+      onclick="showPairing()"
     >
-      PHONE NUMBER
+      📱 PHONE NUMBER
     </button>
 
     <button
-      class="close"
+      class="option"
       onclick="showQR()"
     >
-      QR CODE
+      🔳 QR CODE
     </button>
 
 
-    <!-- PHONE -->
+    <!-- PAIRING CODE -->
 
     <div
       id="pairArea"
-      style="display:none;margin-top:20px;"
+      class="area"
     >
 
       <input
         id="phone"
         type="tel"
+        inputmode="numeric"
         placeholder="254712345678"
       >
 
       <button
         class="primary"
-        onclick="requestPairing()"
+        onclick="getPairingCode()"
       >
         GET PAIRING CODE
       </button>
 
       <div
-        id="pairCode"
+        id="code"
         class="code"
+      ></div>
+
+      <div
+        id="pairMessage"
+        class="message"
       ></div>
 
     </div>
@@ -308,20 +341,20 @@ input{
 
     <div
       id="qrArea"
-      style="display:none;margin-top:20px;"
+      class="area"
     >
 
       <img
-        id="qrImage"
+        id="qr"
         class="qr"
-        alt="ADEZ-MD QR"
+        alt="ADEZ-MD QR Code"
       >
 
       <div
-        id="qrText"
+        id="qrMessage"
         class="message"
       >
-        Waiting for QR...
+        Waiting for QR code...
       </div>
 
     </div>
@@ -341,16 +374,17 @@ input{
 
 <script>
 
-let selectedDevice = null;
+let currentDevice = null;
+let qrTimer = null;
 
 
 /*
 |--------------------------------------------------------------------------
-| Create device
+| Create new device
 |--------------------------------------------------------------------------
 */
 
-async function createDevice(){
+async function newDevice(){
 
   try{
 
@@ -375,19 +409,19 @@ async function createDevice(){
       return;
     }
 
-    selectedDevice =
+    currentDevice =
       data.deviceId;
 
-    openModal(
-      data.deviceId
-    );
+    openModal();
 
     loadDevices();
 
   }catch(error){
 
+    console.error(error);
+
     alert(
-      "Server connection failed."
+      "Unable to connect to ADEZ-MD server."
     );
 
   }
@@ -397,7 +431,7 @@ async function createDevice(){
 
 /*
 |--------------------------------------------------------------------------
-| Load devices
+| Load all devices
 |--------------------------------------------------------------------------
 */
 
@@ -413,27 +447,22 @@ async function loadDevices(){
     const data =
       await response.json();
 
-    const container =
+    const box =
       document.getElementById(
         "devices"
       );
 
-    container.innerHTML = "";
+    box.innerHTML = "";
 
     if(
-      !data.devices ||
-      data.devices.length === 0
+      !data.success ||
+      !data.devices.length
     ){
 
-      container.innerHTML = `
-        <p style="
-          color:#777;
-          text-align:center;
-          grid-column:1/-1;
-        ">
-          No devices connected.
-        Create your first device.
-        </p>
+      box.innerHTML = `
+        <div class="empty">
+          No devices connected yet.
+        </div>
       `;
 
       return;
@@ -443,35 +472,39 @@ async function loadDevices(){
     data.devices.forEach(
       device => {
 
-        const item =
+        const div =
           document.createElement(
             "div"
           );
 
-        item.className =
+        div.className =
           "device";
 
-        item.innerHTML = `
+        div.innerHTML = `
 
           <h3>
-            ADEZ-MD Device
+            📱 ADEZ-MD Device
           </h3>
 
-          <span class="badge">
-            ${device.status}
+          <span class="status">
+            ${escapeHtml(device.status)}
           </span>
 
           <p>
-            ID: ${device.id}
+            ID:
+            ${escapeHtml(device.id)}
           </p>
 
           <p>
             Phone:
-            ${device.phone || "Not paired"}
+            ${escapeHtml(
+              device.phone ||
+              "Not paired"
+            )}
           </p>
 
           <button
-            onclick="openExisting('${device.id}')"
+            onclick="manageDevice('${device.id}')"
           >
             MANAGE
           </button>
@@ -479,21 +512,22 @@ async function loadDevices(){
           <button
             onclick="logoutDevice('${device.id}')"
           >
-            LOGOUT DEVICE
+            LOGOUT
           </button>
 
         `;
 
-        container.appendChild(
-          item
-        );
+        box.appendChild(div);
 
       }
     );
 
   }catch(error){
 
-    console.error(error);
+    console.error(
+      "Device loading error:",
+      error
+    );
 
   }
 
@@ -502,62 +536,57 @@ async function loadDevices(){
 
 /*
 |--------------------------------------------------------------------------
-| Open new device
+| Manage existing device
 |--------------------------------------------------------------------------
 */
 
-function openModal(deviceId){
+function manageDevice(id){
 
-  selectedDevice =
-    deviceId;
+  currentDevice = id;
+
+  openModal();
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Open modal
+|--------------------------------------------------------------------------
+*/
+
+function openModal(){
 
   document
     .getElementById("modal")
-    .classList.add("active");
-
-  document
-    .getElementById("modalTitle")
-    .textContent =
-      "ADEZ-MD Device";
-
-  document
-    .getElementById("modalText")
-    .textContent =
-      "Choose phone pairing or QR pairing.";
+    .classList.add("show");
 
   document
     .getElementById("pairArea")
-    .style.display =
-      "none";
+    .style.display = "none";
 
   document
     .getElementById("qrArea")
-    .style.display =
-      "none";
+    .style.display = "none";
+
+  document
+    .getElementById("code")
+    .textContent = "";
+
+  document
+    .getElementById("pairMessage")
+    .textContent = "";
 
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| Open existing
+| Phone pairing
 |--------------------------------------------------------------------------
 */
 
-function openExisting(deviceId){
-
-  openModal(deviceId);
-
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| Show phone pairing
-|--------------------------------------------------------------------------
-*/
-
-function showPair(){
+function showPairing(){
 
   document
     .getElementById("pairArea")
@@ -568,6 +597,96 @@ function showPair(){
     .getElementById("qrArea")
     .style.display =
       "none";
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Generate pairing code
+|--------------------------------------------------------------------------
+*/
+
+async function getPairingCode(){
+
+  const phone =
+    document
+      .getElementById("phone")
+      .value
+      .trim();
+
+  const message =
+    document
+      .getElementById(
+        "pairMessage"
+      );
+
+  if(!phone){
+
+    message.textContent =
+      "Enter your phone number with country code.";
+
+    return;
+  }
+
+  message.textContent =
+    "Generating pairing code...";
+
+
+  try{
+
+    const response =
+      await fetch(
+        `/api/device/${currentDevice}/pair`,
+        {
+
+          method:"POST",
+
+          headers:{
+            "Content-Type":
+              "application/json"
+          },
+
+          body:JSON.stringify({
+            number:phone
+          })
+
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if(data.success){
+
+      document
+        .getElementById("code")
+        .textContent =
+          data.code;
+
+      message.textContent =
+        "Open WhatsApp → Linked devices → Link a device → Link with phone number, then enter the code.";
+
+      loadDevices();
+
+    }else{
+
+      message.textContent =
+        data.message ||
+        "Pairing failed.";
+
+    }
+
+  }catch(error){
+
+    console.error(error);
+
+    message.textContent =
+      "Server connection failed.";
+
+  }
 
 }
 
@@ -597,96 +716,34 @@ function showQR(){
 
 /*
 |--------------------------------------------------------------------------
-| Request pairing
-|--------------------------------------------------------------------------
-*/
-
-async function requestPairing(){
-
-  const phone =
-    document
-      .getElementById("phone")
-      .value
-      .trim();
-
-  if(!phone){
-
-    alert(
-      "Enter phone number with country code."
-    );
-
-    return;
-  }
-
-
-  const response =
-    await fetch(
-      `/api/device/${selectedDevice}/pair`,
-      {
-
-        method:"POST",
-
-        headers:{
-          "Content-Type":
-            "application/json"
-        },
-
-        body:JSON.stringify({
-          number:phone
-        })
-
-      }
-    );
-
-
-  const data =
-    await response.json();
-
-
-  if(data.success){
-
-    document
-      .getElementById("pairCode")
-      .textContent =
-        data.code;
-
-  }else{
-
-    alert(
-      data.message ||
-      "Pairing failed."
-    );
-
-  }
-
-}
-
-
-/*
-|--------------------------------------------------------------------------
 | Load QR
 |--------------------------------------------------------------------------
 */
 
 async function loadQR(){
 
-  if(!selectedDevice)
+  if(!currentDevice)
     return;
 
   const image =
-    document
-      .getElementById("qrImage");
+    document.getElementById(
+      "qr"
+    );
 
-  const text =
-    document
-      .getElementById("qrText");
+  const message =
+    document.getElementById(
+      "qrMessage"
+    );
+
+  message.textContent =
+    "Waiting for QR code...";
 
 
   try{
 
     const response =
       await fetch(
-        `/api/device/${selectedDevice}/qr`
+        `/api/device/${currentDevice}/qr`
       );
 
     const data =
@@ -701,28 +758,36 @@ async function loadQR(){
       image.style.display =
         "block";
 
-      text.textContent =
-        "Scan this QR code with WhatsApp.";
+      message.textContent =
+        "Scan the QR code with WhatsApp.";
 
     }else{
 
       image.style.display =
         "none";
 
-      text.textContent =
+      message.textContent =
         "Waiting for WhatsApp QR code...";
 
-      setTimeout(
-        loadQR,
-        2000
-      );
+      clearTimeout(qrTimer);
+
+      qrTimer =
+        setTimeout(
+          loadQR,
+          2000
+        );
 
     }
 
   }catch(error){
 
-    text.textContent =
-      "Unable to load QR.";
+    console.error(
+      "QR error:",
+      error
+    );
+
+    message.textContent =
+      "Unable to load QR code.";
 
   }
 
@@ -735,43 +800,46 @@ async function loadQR(){
 |--------------------------------------------------------------------------
 */
 
-async function logoutDevice(
-  deviceId
-){
+async function logoutDevice(id){
 
-  if(
-    !confirm(
-      "Logout this ADEZ-MD device?"
-    )
-  ){
-
-    return;
-
-  }
-
-
-  const response =
-    await fetch(
-      `/api/device/${deviceId}/logout`,
-      {
-        method:"POST"
-      }
+  const confirmed =
+    confirm(
+      "Logout this WhatsApp device?"
     );
 
+  if(!confirmed)
+    return;
 
-  const data =
-    await response.json();
 
+  try{
 
-  if(data.success){
+    const response =
+      await fetch(
+        `/api/device/${id}/logout`,
+        {
+          method:"POST"
+        }
+      );
+
+    const data =
+      await response.json();
+
+    if(!data.success){
+
+      alert(
+        data.message ||
+        "Logout failed."
+      );
+
+      return;
+    }
 
     loadDevices();
 
-  }else{
+  }catch(error){
 
     alert(
-      data.message ||
-      "Logout failed."
+      "Server connection failed."
     );
 
   }
@@ -789,21 +857,47 @@ function closeModal(){
 
   document
     .getElementById("modal")
-    .classList.remove("active");
+    .classList.remove("show");
 
-  selectedDevice =
-    null;
+  clearTimeout(qrTimer);
+
+  currentDevice = null;
 
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| Refresh device list
+| Basic HTML escaping
+|--------------------------------------------------------------------------
+*/
+
+function escapeHtml(value){
+
+  return String(value)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Initial load
 |--------------------------------------------------------------------------
 */
 
 loadDevices();
+
+
+/*
+|--------------------------------------------------------------------------
+| Refresh device statuses
+|--------------------------------------------------------------------------
+*/
 
 setInterval(
   loadDevices,
@@ -813,5 +907,4 @@ setInterval(
 </script>
 
 </body>
-
 </html>
